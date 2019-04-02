@@ -124,6 +124,7 @@ class AlternatingAttention(object):
 
     def _glimpse(self, weights, bias, encodings, inputs):
         """
+
         Computes glimpse over an encoding. Attention weights are computed based on the bilinear product of
         the encodings, weight matrix, and inputs.
 
@@ -138,16 +139,17 @@ class AlternatingAttention(object):
 
     def _inference(self, docs, queries):
         """
+        计算 文章 注意力矩阵 给 文章 一个批处理 和 问题 一个批处理
         Computes document attentions given a document batch and query batch.
         """
         with tf.name_scope("inference"):
-            # Compute document lengths / query lengths for batch
+            # Compute document lengths / query lengths for batch 计算文章长度、问题长度 为了批处理
             doc_lens = length(docs)
             query_lens = length(queries)
             batch_size = tf.shape(docs)[0]
 
             with tf.variable_scope('encode'):
-                # Encode Document / Query
+                # Encode Document / Query 编码（矢量化） 文章 编码（矢量化） 问题
                 with tf.variable_scope('docs'), tf.device('/gpu:0'):
                     encoded_docs = tf.nn.dropout(self._embed(docs), self._keep_prob)
                     encoded_docs = self._bidirectional_encode(encoded_docs, doc_lens, self._encode_size)
@@ -162,7 +164,7 @@ class AlternatingAttention(object):
                     if iter_step > 0:
                         scope.reuse_variables()
 
-                    # Glimpse query and document
+                    # Glimpse query and document 查询和文档
                     with tf.device('/gpu:0'):
                         q_attention, q_glimpse = self._glimpse(self._A_q, self._a_q, encoded_queries, infer_state)
                         tf.add_to_collection('query_attentions', q_attention)
@@ -170,7 +172,7 @@ class AlternatingAttention(object):
                         d_attention, d_glimpse = self._glimpse(self._A_d, self._a_d, encoded_docs,
                                                                tf.concat([infer_state, q_glimpse], 1))
                         tf.add_to_collection('doc_attentions', d_attention)
-                    # Search Gates
+                    # Search Gates 搜索门
 
                     gate_concat = tf.concat([infer_state, q_glimpse, d_glimpse, q_glimpse * d_glimpse], 1)
 
