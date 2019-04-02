@@ -1,13 +1,14 @@
-import numpy as np
-import pprint
-import tensorflow as tf
 import os
+import pprint
 from datetime import datetime
 
-from model import AlternatingAttention
+import numpy as np
+import tensorflow as tf
+
 import data_helper
-import train
 import test
+import train
+from model import AlternatingAttention
 
 flags = tf.app.flags;
 
@@ -17,7 +18,8 @@ flags.DEFINE_integer("num_glimpses", 8, "Number of glimpse iterations during rea
 flags.DEFINE_float("dropout_keep_prob", 0.8, "Dropout keep probability (default: 0.8)")
 flags.DEFINE_float("l2_reg_lambda", 1e-4, "L2 regularizaion lambda (default: 0.0001)")
 flags.DEFINE_float("learning_rate", 1e-3, "AdamOptimizer learning rate (default: 0.001)")
-flags.DEFINE_float("learning_rate_decay", 0.8, "How much learning rate will decay after half epoch of non-decreasing loss (default: 0.8)")
+flags.DEFINE_float("learning_rate_decay", 0.8,
+                   "How much learning rate will decay after half epoch of non-decreasing loss (default: 0.8)")
 
 # Training parameters
 flags.DEFINE_integer("batch_size", 32, "Batch Size (default: 32)")
@@ -33,10 +35,11 @@ flags.DEFINE_string("restore_file", None, "Checkpoint to load")
 
 flags.DEFINE_boolean("evaluate", False, "Whether to run evaluation epoch on a checkpoint. Must have restore_file set.")
 
+
 def main(_):
     FLAGS = tf.app.flags.FLAGS
     pp = pprint.PrettyPrinter()
-    FLAGS._parse_flags()
+    FLAGS.flag_values_dict()
     pp.pprint(FLAGS.__flags)
 
     # Load Data
@@ -50,16 +53,19 @@ def main(_):
     if not os.path.exists(FLAGS.ckpt_dir):
         os.makedirs(FLAGS.ckpt_dir)
 
-    timestamp = datetime.now().strftime('%c')
-    FLAGS.log_dir = os.path.join(FLAGS.log_dir, timestamp)
+    # timestamp = datetime.now().strftime('%c')
+    # FLAGS.log_dir = os.path.join(FLAGS.log_dir, timestamp)
+    FLAGS.log_dir = "log"
     if not os.path.exists(FLAGS.log_dir):
         os.makedirs(FLAGS.log_dir)
 
     # Train Model
-    with tf.Session(config=tf.ConfigProto(log_device_placement=False, allow_soft_placement=True)) as sess, tf.device('/gpu:0'):
-        model = AlternatingAttention(FLAGS.batch_size, vocab_size, FLAGS.encoding_dim, FLAGS.embedding_dim, FLAGS.num_glimpses, session=sess)
+    with tf.Session(config=tf.ConfigProto(log_device_placement=False, allow_soft_placement=True)) as sess, tf.device(
+            '/gpu:0'):
+        model = AlternatingAttention(FLAGS.batch_size, vocab_size, FLAGS.encoding_dim, FLAGS.embedding_dim,
+                                     FLAGS.num_glimpses, session=sess)
 
-        if FLAGS.trace: # Trace model for debugging
+        if FLAGS.trace:  # Trace model for debugging
             train.trace(FLAGS, sess, model, (X_train, Q_train, Y_train))
             return
 
@@ -79,9 +85,10 @@ def main(_):
                 test.run(FLAGS, sess, model, test_data, word2idx)
         else:
             train.run(FLAGS, sess, model,
-                    (X_train, Q_train, Y_train),
-                    (X_test, Q_test, Y_test),
-                    saver)
+                      (X_train, Q_train, Y_train),
+                      (X_test, Q_test, Y_test),
+                      saver)
+
 
 if __name__ == '__main__':
     tf.app.run()

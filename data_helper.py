@@ -1,22 +1,24 @@
-import tarfile
-import os
-import numpy as np
-from functools import reduce
 import itertools
-import re
-import h5py
+import os
 import pickle
+import re
+from functools import reduce
 
-data_path = 'data/'
+import h5py
+import numpy as np
+
+data_path = ''
 data_filenames = {
-        'train' : 'CBTest/data/cbtest_NE_train.txt',
-        'test'  : 'CBTest/data/cbtest_NE_test_2500ex.txt',
-        'valid' : 'CBTest/data/cbtest_NE_valid_2000ex.txt'
-        }
+    'train': 'CBTest/data/cbtest_NE_train.txt',
+    'test': 'CBTest/data/cbtest_NE_test_2500ex.txt',
+    'valid': 'CBTest/data/cbtest_NE_valid_2000ex.txt'
+}
 vocab_file = os.path.join(data_path, 'vocab.h5')
+
 
 def tokenize(sentence):
     return [s.strip() for s in re.split('(\W+)+', sentence) if s.strip()]
+
 
 def parse_stories(lines):
     stories = []
@@ -28,13 +30,14 @@ def parse_stories(lines):
         else:
             _, line = line.split(' ', 1)
             if line:
-                if '\t' in line: # query line
+                if '\t' in line:  # query line
                     q, a, _, answers = line.split('\t')
                     q = tokenize(q)
                     stories.append((story, q, a))
                 else:
                     story.append(tokenize(line))
     return stories
+
 
 def get_stories(story_file):
     stories = parse_stories(story_file.readlines())
@@ -103,9 +106,10 @@ def vectorize_stories(data, word2idx, doc_max_len, query_max_len):
     Q = pad_sequences(Xq, maxlen=query_max_len)
     return (X, Q, np.array(Y))
 
+
 def build_vocab():
     if os.path.isfile(vocab_file):
-        (word2idx, doc_length, query_length) = pickle.load( open( vocab_file, "rb" ) )
+        (word2idx, doc_length, query_length) = pickle.load(open(vocab_file, "rb"))
     else:
         stories = []
         for key, filename in data_filenames.items():
@@ -118,10 +122,11 @@ def build_vocab():
         vocab = sorted(set(itertools.chain(*(story + q + [answer] for story, q, answer in stories))))
         vocab_size = len(vocab) + 1
         print('Vocab size:', vocab_size)
-        word2idx = dict((w, i + 1) for i,w in enumerate(vocab))
-        pickle.dump( (word2idx, doc_length, query_length), open( vocab_file, "wb" ) )
+        word2idx = dict((w, i + 1) for i, w in enumerate(vocab))
+        pickle.dump((word2idx, doc_length, query_length), open(vocab_file, "wb"))
 
     return (word2idx, doc_length, query_length)
+
 
 def load_data(dataset='train', debug=False):
     filename = os.path.join(data_path, data_filenames[dataset])

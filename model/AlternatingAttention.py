@@ -1,8 +1,8 @@
-import tensorflow as tf
 import numpy as np
-from tensorflow.python.client import timeline
+import tensorflow as tf
 
-def orthogonal_initializer(scale = 1.1):
+
+def orthogonal_initializer(scale=1.1):
     def _initializer(shape, dtype=tf.float32, partition_info=None):
         '''
         from keras https://github.com/fchollet/keras/blob/master/keras/initializations.py
@@ -14,19 +14,23 @@ def orthogonal_initializer(scale = 1.1):
         q = u if u.shape == flat_shape else v
         q = q.reshape(shape)
         return tf.constant(scale * q[:shape[0], :shape[1]], dtype=tf.float32)
+
     return _initializer
+
 
 def length(sequence):
     return tf.reduce_sum(tf.sign(tf.abs(sequence)), 1)
 
+
 class AlternatingAttention(object):
     """Iterative Alternating Attention Network"""
+
     def __init__(self, batch_size, vocab_size, encoding_size, embedding_size,
-                    num_glimpses = 8,
-                    grad_norm_clip = 5.,
-                    l2_reg_coef=1e-4,
-                    session=tf.Session(),
-                    name='AlternatingAttention'):
+                 num_glimpses=8,
+                 grad_norm_clip=5.,
+                 l2_reg_coef=1e-4,
+                 session=tf.Session(),
+                 name='AlternatingAttention'):
         """
         Creates an iterative alternating attention network as described in https://arxiv.org/abs/1606.02245
         """
@@ -45,13 +49,12 @@ class AlternatingAttention(object):
         # Regularization
         tf.contrib.layers.apply_regularization(tf.contrib.layers.l2_regularizer(l2_reg_coef), [self._embeddings])
 
-
         # Answer probability
         doc_attentions = self._inference(self._docs, self._queries)
-        nans =  tf.reduce_sum(tf.to_float(tf.is_nan(doc_attentions)))
+        nans = tf.reduce_sum(tf.cast(tf.is_nan(doc_attentions), dtype=float))
 
         self._doc_attentions = doc_attentions
-        ans_mask = tf.to_float(tf.equal(tf.expand_dims(self._answers, -1), self._docs))
+        ans_mask = tf.cast(tf.equal(tf.expand_dims(self._answers, -1), self._docs), dtype=float)
         P_a = tf.reduce_sum(ans_mask * doc_attentions, 1)
         loss_op = -tf.reduce_mean(tf.log(P_a + tf.constant(0.00001)))
         self._loss_op = loss_op
@@ -60,7 +63,7 @@ class AlternatingAttention(object):
         with tf.name_scope("optimizer"):
             self._opt = tf.train.AdamOptimizer(learning_rate=self._learning_rate)
             grads_and_vars = self._opt.compute_gradients(loss_op)
-            capped_grads_and_vars = [(tf.clip_by_norm(g, grad_norm_clip), v) for g,v in grads_and_vars]
+            capped_grads_and_vars = [(tf.clip_by_norm(g, grad_norm_clip), v) for g, v in grads_and_vars]
             self._train_op = self._opt.apply_gradients(capped_grads_and_vars, global_step=self._global_step)
 
         tf.summary.scalar('loss', self._loss_op)
@@ -83,19 +86,21 @@ class AlternatingAttention(object):
         self._learning_rate = tf.placeholder(tf.float32, name="learning_rate")
 
     def _build_variables(self):
-        with tf.variable_scope("variables", initializer=tf.random_normal_initializer(mean=0.0, stddev=0.22, dtype=tf.float32)):
+        with tf.variable_scope("variables",
+                               initializer=tf.random_normal_initializer(mean=0.0, stddev=0.22, dtype=tf.float32)):
             self._embeddings = tf.get_variable("embeddings", [self._vocab_size, self._embedding_size], dtype=tf.float32)
-            self._A_q = tf.get_variable("A_q", [2*self._encode_size, self._infer_size], dtype=tf.float32)
-            self._a_q = tf.get_variable("a_q", [2*self._encode_size, 1], dtype=tf.float32)
+            self._A_q = tf.get_variable("A_q", [2 * self._encode_size, self._infer_size], dtype=tf.float32)
+            self._a_q = tf.get_variable("a_q", [2 * self._encode_size, 1], dtype=tf.float32)
 
-            self._A_d = tf.get_variable("A_d", [2*self._encode_size, self._infer_size + 2*self._encode_size], dtype=tf.float32)
-            self._a_d = tf.get_variable("a_d", [2*self._encode_size, 1], dtype=tf.float32)
+            self._A_d = tf.get_variable("A_d", [2 * self._encode_size, self._infer_size + 2 * self._encode_size],
+                                        dtype=tf.float32)
+            self._a_d = tf.get_variable("a_d", [2 * self._encode_size, 1], dtype=tf.float32)
 
             self._g_q = tf.get_variable("g_q", [self._infer_size + 6 * self._encode_size, 2 * self._encode_size])
             self._g_d = tf.get_variable("g_d", [self._infer_size + 6 * self._encode_size, 2 * self._encode_size])
 
-            self._global_step = tf.get_variable('global_step', [], initializer=tf.constant_initializer(0), dtype=tf.int32, trainable=False)
-
+            self._global_step = tf.get_variable('global_step', [], initializer=tf.constant_initializer(0),
+                                                dtype=tf.int32, trainable=False)
 
     def _embed(self, sequence):
         """
@@ -112,9 +117,9 @@ class AlternatingAttention(object):
         with tf.name_scope('encode'):
             gru_cell = tf.nn.rnn_cell.GRUCell(size)
             outputs, _ = tf.nn.bidirectional_dynamic_rnn(
-                    gru_cell, gru_cell, sequence, sequence_length=seq_lens,
-                    dtype=tf.float32, swap_memory=True)
-            encoded = tf.concat(2, outputs)
+                gru_cell, gru_cell, sequence, sequence_length=seq_lens,
+                dtype=tf.float32, swap_memory=True)
+            encoded = tf.concat(outputs, 2)
             return encoded
 
     def _glimpse(self, weights, bias, encodings, inputs):
@@ -127,7 +132,7 @@ class AlternatingAttention(object):
         weights = tf.nn.dropout(weights, self._keep_prob)
         inputs = tf.nn.dropout(inputs, self._keep_prob)
         attention = tf.transpose(tf.matmul(weights, tf.transpose(inputs)) + bias)
-        attention = tf.batch_matmul(encodings, tf.expand_dims(attention, -1))
+        attention = tf.matmul(encodings, tf.expand_dims(attention, -1))
         attention = tf.nn.softmax(tf.squeeze(attention, -1))
         return attention, tf.reduce_sum(tf.expand_dims(attention, -1) * encodings, 1)
 
@@ -162,21 +167,22 @@ class AlternatingAttention(object):
                         q_attention, q_glimpse = self._glimpse(self._A_q, self._a_q, encoded_queries, infer_state)
                         tf.add_to_collection('query_attentions', q_attention)
                     with tf.device('/gpu:1'):
-                        d_attention, d_glimpse = self._glimpse(self._A_d, self._a_d, encoded_docs, tf.concat_v2([infer_state, q_glimpse], 1))
+                        d_attention, d_glimpse = self._glimpse(self._A_d, self._a_d, encoded_docs,
+                                                               tf.concat([infer_state, q_glimpse], 1))
                         tf.add_to_collection('doc_attentions', d_attention)
                     # Search Gates
 
-                    gate_concat = tf.concat_v2([infer_state, q_glimpse, d_glimpse, q_glimpse * d_glimpse], 1)
+                    gate_concat = tf.concat([infer_state, q_glimpse, d_glimpse, q_glimpse * d_glimpse], 1)
 
                     r_d = tf.sigmoid(tf.matmul(gate_concat, self._g_d))
                     r_d = tf.nn.dropout(r_d, self._keep_prob)
                     r_q = tf.sigmoid(tf.matmul(gate_concat, self._g_q))
                     r_q = tf.nn.dropout(r_q, self._keep_prob)
 
-                    combined_gated_glimpse = tf.concat_v2([r_q * q_glimpse, r_d * d_glimpse], 1)
+                    combined_gated_glimpse = tf.concat([r_q * q_glimpse, r_d * d_glimpse], 1)
                     _, infer_state = infer_gru(combined_gated_glimpse, infer_state)
 
-            return tf.to_float(tf.sign(tf.abs(docs))) * d_attention
+            return tf.cast(tf.sign(tf.abs(docs)), dtype=float) * d_attention
 
     def batch_fit(self, docs, queries, answers, learning_rate=1e-3, run_options=None, run_metadata=None):
         """
@@ -191,8 +197,8 @@ class AlternatingAttention(object):
         }
 
         loss, summary, _, step, attentions = self._sess.run(
-                [self._loss_op, self._summary_op, self._train_op, self._global_step, self._doc_attentions],
-                feed_dict=feed_dict, options=run_options, run_metadata=run_metadata)
+            [self._loss_op, self._summary_op, self._train_op, self._global_step, self._doc_attentions],
+            feed_dict=feed_dict, options=run_options, run_metadata=run_metadata)
 
         return loss, summary, step, attentions
 
@@ -208,9 +214,9 @@ class AlternatingAttention(object):
             self._learning_rate: 0.
         }
         d_a, q_a = self._sess.run([
-                    tf.get_collection('doc_attentions'),
-                    tf.get_collection('query_attentions')
-                    ], feed_dict=feed_dict)
+            tf.get_collection('doc_attentions'),
+            tf.get_collection('query_attentions')
+        ], feed_dict=feed_dict)
 
         return np.asarray(d_a), np.asarray(q_a)
 
@@ -226,7 +232,7 @@ class AlternatingAttention(object):
             self._learning_rate: 0.
         }
         loss, summary, attentions = self._sess.run(
-                [self._loss_op, self._summary_op, self._doc_attentions ],
-                feed_dict=feed_dict)
+            [self._loss_op, self._summary_op, self._doc_attentions],
+            feed_dict=feed_dict)
 
         return loss, summary, attentions
