@@ -9,4 +9,4 @@ python load_data.py
 ```
 python main.py
 ```
-Currently only tested on the Childrens Book Test set from the [bAbI project at Facebook](https://research.facebook.com/research/babi/)
+目前仅在英文儿童图书测试集上测试 [bAbI project at Facebook](https://research.facebook.com/research/babi/)
