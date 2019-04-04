@@ -3,14 +3,15 @@ import tensorflow as tf
 
 
 def orthogonal_initializer(scale=1.1):
-    def _initializer(shape, dtype=tf.float32, partition_info=None):
+    def _initializer(shape):
         '''
+        从keras https://github.com/fchollet/keras/blob/master/keras/initializations.py
         from keras https://github.com/fchollet/keras/blob/master/keras/initializations.py
         '''
         flat_shape = (shape[0], np.prod(shape[1:]))
         a = np.random.normal(0.0, 1.0, flat_shape)
         u, _, v = np.linalg.svd(a, full_matrices=False)
-        # pick the one with the correct shape
+        # pick the one with the correct shape 选一个张量正确的
         q = u if u.shape == flat_shape else v
         q = q.reshape(shape)
         return tf.constant(scale * q[:shape[0], :shape[1]], dtype=tf.float32)
@@ -23,7 +24,9 @@ def length(sequence):
 
 
 class AlternatingAttention(object):
-    """Iterative Alternating Attention Network"""
+    """
+    迭代交替注意机制网络
+    Iterative Alternating Attention Network"""
 
     def __init__(self, batch_size, vocab_size, encoding_size, embedding_size,
                  num_glimpses=8,
@@ -32,6 +35,7 @@ class AlternatingAttention(object):
                  session=tf.Session(),
                  name='AlternatingAttention'):
         """
+        创建一个迭代交替注意网络，如https://arxiv.org/abs/1606.02245所述
         Creates an iterative alternating attention network as described in https://arxiv.org/abs/1606.02245
         """
         self._batch_size = batch_size
@@ -46,10 +50,10 @@ class AlternatingAttention(object):
         self._build_placeholders()
         self._build_variables()
 
-        # Regularization
+        # Regularization 正则化
         tf.contrib.layers.apply_regularization(tf.contrib.layers.l2_regularizer(l2_reg_coef), [self._embeddings])
 
-        # Answer probability
+        # Answer probability 答案的概率
         doc_attentions = self._inference(self._docs, self._queries)
         nans = tf.reduce_sum(tf.cast(tf.is_nan(doc_attentions), dtype=float))
 
@@ -59,7 +63,7 @@ class AlternatingAttention(object):
         loss_op = -tf.reduce_mean(tf.log(P_a + tf.constant(0.00001)))
         self._loss_op = loss_op
 
-        # Optimizer and gradients
+        # Optimizer and gradients 优化和梯度
         with tf.name_scope("optimizer"):
             self._opt = tf.train.AdamOptimizer(learning_rate=self._learning_rate)
             grads_and_vars = self._opt.compute_gradients(loss_op)
@@ -75,6 +79,8 @@ class AlternatingAttention(object):
 
     def _build_placeholders(self):
         """
+        为模型的输入添加tensorflow占位符:文档、查询、答案。
+        keep_prob和learning_rate是我们在训练时可能需要调整的超参数。
         Adds tensorflow placeholders for inputs to the model: documents, queries, answers.
         keep_prob and learning_rate are hyperparameters that we might like to adjust while training.
         """
@@ -104,6 +110,7 @@ class AlternatingAttention(object):
 
     def _embed(self, sequence):
         """
+        为序列中的每个单词执行嵌入查找
         performs embedding lookups for every word in the sequence
         """
         with tf.variable_scope('embed'):
@@ -112,10 +119,12 @@ class AlternatingAttention(object):
 
     def _bidirectional_encode(self, sequence, seq_lens, size):
         """
+        用两个gru编码序列，一个向前，一个向后，并返回连接
         Encodes sequence with two GRUs, one forward, one backward, and returns the concatenation
         """
         with tf.name_scope('encode'):
-            gru_cell = tf.nn.rnn_cell.GRUCell(size)
+            gru_cell = tf.keras.layers.GRUCell(size)
+
             outputs, _ = tf.nn.bidirectional_dynamic_rnn(
                 gru_cell, gru_cell, sequence, sequence_length=seq_lens,
                 dtype=tf.float32, swap_memory=True)
@@ -124,7 +133,9 @@ class AlternatingAttention(object):
 
     def _glimpse(self, weights, bias, encodings, inputs):
         """
-
+        计算程序浏览编码。的双线性乘积计算注意权重
+        编码、权重矩阵和输入。
+        返回注意权重和计算的一瞥
         Computes glimpse over an encoding. Attention weights are computed based on the bilinear product of
         the encodings, weight matrix, and inputs.
 
@@ -188,6 +199,7 @@ class AlternatingAttention(object):
 
     def batch_fit(self, docs, queries, answers, learning_rate=1e-3, run_options=None, run_metadata=None):
         """
+        执行批处理训练迭代
         Perform a batch training iteration
         """
         feed_dict = {
@@ -206,6 +218,7 @@ class AlternatingAttention(object):
 
     def get_attentions(self, docs, queries, answers):
         """
+        获取每个交替迭代的注意力分布。
         Gets the attention distributions for each alternating iteration.
         """
         feed_dict = {
@@ -224,6 +237,7 @@ class AlternatingAttention(object):
 
     def batch_predict(self, docs, queries, answers):
         """
+        执行批处理的预测。计算批量预测的准确性。
         Perform batch prediction. Computes accuracy of batch predictions.
         """
         feed_dict = {
