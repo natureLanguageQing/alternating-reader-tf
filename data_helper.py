@@ -30,7 +30,7 @@ def parse_stories(lines):
         else:
             _, line = line.split(' ', 1)
             if line:
-                if '\t' in line:  # query line
+                if '\t' in line:  # 查询路线 query line
                     q, a, _, answers = line.split('\t')
                     q = tokenize(q)
                     stories.append((story, q, a))
@@ -85,7 +85,7 @@ def pad_sequences(sequences, maxlen=None, dtype='int32',
         elif padding == 'pre':
             x[idx, -len(trunc):] = trunc
         else:
-            raise ValueError('Padding type "%s" not understood' % padding)
+            raise ValueError('填充类型 "%s" 不理解' % padding)
     return x
 
 
@@ -97,7 +97,6 @@ def vectorize_stories(data, word2idx, doc_max_len, query_max_len):
     for s, q, a in data:
         x = [word2idx[w] for w in s]
         xq = [word2idx[w] for w in q]
-        y = np.zeros(len(word2idx) + 1)
         X.append(x)
         Xq.append(xq)
         Y.append(word2idx[a])
@@ -118,7 +117,7 @@ def build_vocab():
         doc_length = max([len(s) for s, _, _ in stories])
         query_length = max([len(q) for _, q, _ in stories])
 
-        print('Document Length: {}, Query Length: {}'.format(doc_length, query_length))
+        print('文档长度 : {}, 查询长度 : {}'.format(doc_length, query_length))
         vocab = sorted(set(itertools.chain(*(story + q + [answer] for story, q, answer in stories))))
         vocab_size = len(vocab) + 1
         print('Vocab size:', vocab_size)
@@ -128,14 +127,14 @@ def build_vocab():
     return (word2idx, doc_length, query_length)
 
 
-def load_data(dataset='train', debug=False):
+def load_data(dataset='train'):
     filename = os.path.join(data_path, data_filenames[dataset])
-    # Check for preprocessed data and load that instead
+    # 检查预处理数据并加载它
     if os.path.isfile(filename + '.h5'):
         h5f = h5py.File(filename + '.h5', 'r')
-        X = h5f['X'][:]
-        Q = h5f['Q'][:]
-        Y = h5f['Y'][:]
+        X = h5f['X'][:100]
+        Q = h5f['Q'][:100]
+        Y = h5f['Y'][:100]
         h5f.close()
     else:
         stories = get_stories(open(filename))

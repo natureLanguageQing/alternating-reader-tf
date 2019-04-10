@@ -1,5 +1,7 @@
 import numpy as np
 import tensorflow as tf
+from tensorflow.python.keras.layers import Bidirectional
+from tensorflow.python.ops.rnn import bidirectional_dynamic_rnn
 
 
 def orthogonal_initializer(scale=1.1):
@@ -123,9 +125,11 @@ class AlternatingAttention(object):
         Encodes sequence with two GRUs, one forward, one backward, and returns the concatenation
         """
         with tf.name_scope('encode'):
-            gru_cell = tf.keras.layers.GRUCell(size)
-
-            outputs, _ = tf.nn.bidirectional_dynamic_rnn(
+            # gru_cell = tf.keras.layers.GRUCell(size)
+            gru_cell = tf.nn.rnn_cell.GRUCell(size)
+            # outputs, _ =Bidirectional(gru_cell, gru_cell)
+            # outputs, _ = tf.keras.layers.Bidirectional(gru_cell, gru_cell, sequence, sequence_length=seq_lens)
+            outputs, _ = bidirectional_dynamic_rnn(
                 gru_cell, gru_cell, sequence, sequence_length=seq_lens,
                 dtype=tf.float32, swap_memory=True)
             encoded = tf.concat(outputs, 2)
@@ -133,9 +137,7 @@ class AlternatingAttention(object):
 
     def _glimpse(self, weights, bias, encodings, inputs):
         """
-        计算程序浏览编码。的双线性乘积计算注意权重
-        编码、权重矩阵和输入。
-        返回注意权重和计算的一瞥
+         双线性的
         Computes glimpse over an encoding. Attention weights are computed based on the bilinear product of
         the encodings, weight matrix, and inputs.
 
@@ -153,6 +155,7 @@ class AlternatingAttention(object):
         计算 文章 注意力矩阵 给 文章 一个批处理 和 问题 一个批处理
         Computes document attentions given a document batch and query batch.
         """
+        global d_attention
         with tf.name_scope("inference"):
             # Compute document lengths / query lengths for batch 计算文章长度、问题长度 为了批处理
             doc_lens = length(docs)
@@ -169,6 +172,7 @@ class AlternatingAttention(object):
                     encoded_queries = self._bidirectional_encode(encoded_queries, query_lens, self._encode_size)
 
             with tf.variable_scope('attend') as scope:
+                # infer_state = tf.keras.layers.GRUCell(self._infer_size)
                 infer_gru = tf.nn.rnn_cell.GRUCell(self._infer_size)
                 infer_state = infer_gru.zero_state(batch_size, tf.float32)
                 for iter_step in range(self._num_glimpses):

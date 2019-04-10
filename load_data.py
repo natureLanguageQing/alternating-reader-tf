@@ -9,7 +9,7 @@ import numpy as np
 
 data_path = 'data/'
 data_filenames = {
-    'train': 'CBTest/data/cbtest_NE_train.txt',
+    'train': 'BaiduDate/baiduEntity.txt',
     'test': 'CBTest/data/cbtest_NE_test_2500ex.txt',
     'valid': 'CBTest/data/cbtest_NE_valid_2000ex.txt'
 }
