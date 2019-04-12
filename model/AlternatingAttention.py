@@ -1,6 +1,5 @@
 import numpy as np
 import tensorflow as tf
-from tensorflow.python.keras.layers import Bidirectional
 from tensorflow.python.ops.rnn import bidirectional_dynamic_rnn
 
 
@@ -138,9 +137,12 @@ class AlternatingAttention(object):
     def _glimpse(self, weights, bias, encodings, inputs):
         """
          双线性的
+         计算程序浏览编码。的双线性乘积计算注意权重
+         编码、权重矩阵和输入。
         Computes glimpse over an encoding. Attention weights are computed based on the bilinear product of
         the encodings, weight matrix, and inputs.
 
+        返回注意权重和计算的一瞥
         Returns attention weights and computed glimpse
         """
         weights = tf.nn.dropout(weights, self._keep_prob)

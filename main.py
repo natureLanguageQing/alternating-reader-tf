@@ -21,7 +21,7 @@ flags.DEFINE_float("learning_rate_decay", 0.8,
                    "在损失不减少的半个周期后，学习率会下降多少(默认值:0.8)")
 
 # Training parameters 训练过程 参数
-flags.DEFINE_integer("batch_size", 32, "批量大小(默认:32)")
+flags.DEFINE_integer("batch_size", 8, "批量大小(默认:32)")
 flags.DEFINE_integer("num_epochs", 12, "训练周期数(默认:12)")
 flags.DEFINE_integer("evaluate_every", 300, "在这许多步骤之后，在验证集上评估模型(默认值:300)")
 
@@ -37,9 +37,6 @@ flags.DEFINE_boolean("evaluate", False, "是否在检查点上运行计算历。
 
 def main(_):
     flags_title = tf.flags.FLAGS
-    # pp = pprint.PrettyPrinter()
-    flags_title.flag_values_dict()
-    # pp.pprint(flags_title.__flags)
 
     # 载入 数据
     X_train, Q_train, Y_train = data_helper.load_data('train')

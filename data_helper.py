@@ -7,19 +7,26 @@ from functools import reduce
 import h5py
 import numpy as np
 
+# 词表地址
 data_path = ''
+# 数据地址
 data_filenames = {
-    'train': 'CBTest/data/cbtest_NE_train.txt',
-    'test': 'CBTest/data/cbtest_NE_test_2500ex.txt',
-    'valid': 'CBTest/data/cbtest_NE_valid_2000ex.txt'
+    # 训练数据地址
+    'train': 'BaiduTest/baidu_entity_train.txt',
+    # 测试数据地址
+    'test': 'BaiduTest/baidu_entity_test.txt',
+    # 验证数据地址
+    'valid': 'BaiduTest/baidu_entity_dev.txt'
 }
 vocab_file = os.path.join(data_path, 'vocab.h5')
 
 
+# 分词
 def tokenize(sentence):
     return [s.strip() for s in re.split('(\W+)+', sentence) if s.strip()]
 
 
+# 转换故事格式
 def parse_stories(lines):
     stories = []
     story = []
@@ -28,17 +35,20 @@ def parse_stories(lines):
         if not line:
             story = []
         else:
-            _, line = line.split(' ', 1)
+            if ' ' in line:
+                _, line = line.split(' ', 1)
             if line:
-                if '\t' in line:  # 查询路线 query line
-                    q, a, _, answers = line.split('\t')
+                if '\t' in line:  # 问题 答案 备选答案
+                    q, a, answers = line.split('\t')
                     q = tokenize(q)
+
                     stories.append((story, q, a))
                 else:
                     story.append(tokenize(line))
     return stories
 
 
+# 获取数据
 def get_stories(story_file):
     stories = parse_stories(story_file.readlines())
     flatten = lambda story: reduce(lambda x, y: x + y, story)
@@ -66,18 +76,18 @@ def pad_sequences(sequences, maxlen=None, dtype='int32',
     x = (np.ones((nb_samples, maxlen) + sample_shape) * value).astype(dtype)
     for idx, s in enumerate(sequences):
         if len(s) == 0:
-            continue  # empty list was found
+            continue  # 如果集合为空 empty list was found
         if truncating == 'pre':
             trunc = s[-maxlen:]
         elif truncating == 'post':
             trunc = s[:maxlen]
         else:
-            raise ValueError('Truncating type "%s" not understood' % truncating)
+            raise ValueError('删除类型 "%s" 不理解' % truncating)
 
         # check `trunc` has expected shape
         trunc = np.asarray(trunc, dtype=dtype)
         if trunc.shape[1:] != sample_shape:
-            raise ValueError('Shape of sample %s of sequence at position %s is different from expected shape %s' %
+            raise ValueError('样品的张量 %s 位置序列 %s 与预期的张量不一致 %s' %
                              (trunc.shape[1:], idx, sample_shape))
 
         if padding == 'post':
@@ -89,6 +99,7 @@ def pad_sequences(sequences, maxlen=None, dtype='int32',
     return x
 
 
+# 数据 向量化
 def vectorize_stories(data, word2idx, doc_max_len, query_max_len):
     X = []
     Xq = []
@@ -112,7 +123,7 @@ def build_vocab():
     else:
         stories = []
         for key, filename in data_filenames.items():
-            stories = stories + get_stories(open(os.path.join(data_path, filename)))
+            stories = stories + get_stories(open(os.path.join(data_path, filename), encoding="UTF-8"))
 
         doc_length = max([len(s) for s, _, _ in stories])
         query_length = max([len(q) for _, q, _ in stories])
@@ -120,7 +131,7 @@ def build_vocab():
         print('文档长度 : {}, 查询长度 : {}'.format(doc_length, query_length))
         vocab = sorted(set(itertools.chain(*(story + q + [answer] for story, q, answer in stories))))
         vocab_size = len(vocab) + 1
-        print('Vocab size:', vocab_size)
+        print('词表 长度:', vocab_size)
         word2idx = dict((w, i + 1) for i, w in enumerate(vocab))
         pickle.dump((word2idx, doc_length, query_length), open(vocab_file, "wb"))
 
@@ -137,7 +148,7 @@ def load_data(dataset='train'):
         Y = h5f['Y'][:100]
         h5f.close()
     else:
-        stories = get_stories(open(filename))
+        stories = get_stories(open(filename, encoding="UTF-8"))
 
         word2idx, doc_length, query_length = build_vocab()
 

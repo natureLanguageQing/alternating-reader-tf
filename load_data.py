@@ -7,12 +7,14 @@ from functools import reduce
 import h5py
 import numpy as np
 
-data_path = 'data/'
+data_path = 'BaiduTest/'
+# 数据地址
 data_filenames = {
-    'train': 'BaiduDate/baiduEntity.txt',
-    'test': 'CBTest/data/cbtest_NE_test_2500ex.txt',
-    'valid': 'CBTest/data/cbtest_NE_valid_2000ex.txt'
+    'train': 'BaiduTest/baidu_entity_train.txt',
+    'test': 'BaiduTest/baidu_entity_test.txt',
+    'valid': 'BaiduTest/baidu_entity_dev.txt'
 }
+# 词表文件
 vocab_file = os.path.join(data_path, 'vocab.h5')
 
 
@@ -55,6 +57,7 @@ def pad_sequences(sequences, maxlen=None, dtype='int32',
     if maxlen is None:
         maxlen = np.max(lengths)
 
+    # 在下面的主循环中，使用第一个非空序列检查的样例形状来检查一致性。
     # take the sample shape from the first non empty sequence
     # checking for consistency in the main loop below.
     sample_shape = tuple()
@@ -66,18 +69,18 @@ def pad_sequences(sequences, maxlen=None, dtype='int32',
     x = (np.ones((nb_samples, maxlen) + sample_shape) * value).astype(dtype)
     for idx, s in enumerate(sequences):
         if len(s) == 0:
-            continue  # empty list was found
+            continue  # 发现列表为空 empty list was found
         if truncating == 'pre':
             trunc = s[-maxlen:]
         elif truncating == 'post':
             trunc = s[:maxlen]
         else:
-            raise ValueError('Truncating type "%s" not understood' % truncating)
+            raise ValueError('删除类型 "%s" 不被理解' % truncating)
 
-        # check `trunc` has expected shape
+        # 检查“trunc”是否具有预期的张量  check `trunc` has expected shape
         trunc = np.asarray(trunc, dtype=dtype)
         if trunc.shape[1:] != sample_shape:
-            raise ValueError('Shape of sample %s of sequence at position %s is different from expected shape %s' %
+            raise ValueError('样品的张量 %s 位置序列 %s is different from expected shape %s' %
                              (trunc.shape[1:], idx, sample_shape))
 
         if padding == 'post':
@@ -85,7 +88,7 @@ def pad_sequences(sequences, maxlen=None, dtype='int32',
         elif padding == 'pre':
             x[idx, -len(trunc):] = trunc
         else:
-            raise ValueError('Padding type "%s" not understood' % padding)
+            raise ValueError('填充类型 "%s" 不理解' % padding)
     return x
 
 
@@ -97,14 +100,13 @@ def vectorize_stories(data, word2idx, doc_max_len, query_max_len):
     for s, q, a in data:
         x = [word2idx[w] for w in s]
         xq = [word2idx[w] for w in q]
-        y = np.zeros(len(word2idx) + 1)
         X.append(x)
         Xq.append(xq)
         Y.append(word2idx[a])
 
     X = pad_sequences(X, maxlen=doc_max_len)
     Q = pad_sequences(Xq, maxlen=query_max_len)
-    return (X, Q, np.array(Y))
+    return X, Q, np.array(Y)
 
 
 def build_vocab():
@@ -118,18 +120,18 @@ def build_vocab():
         doc_length = max([len(s) for s, _, _ in stories])
         query_length = max([len(q) for _, q, _ in stories])
 
-        print('Document Length: {}, Query Length: {}'.format(doc_length, query_length))
+        print('文档长度: {}, 查询长度: {}'.format(doc_length, query_length))
         vocab = sorted(set(itertools.chain(*(story + q + [answer] for story, q, answer in stories))))
         vocab_size = len(vocab) + 1
-        print('Vocab size:', vocab_size)
+        print('词汇的大小:', vocab_size)
         word2idx = dict((w, i + 1) for i, w in enumerate(vocab))
         pickle.dump((word2idx, doc_length, query_length), open(vocab_file, "wb"))
-    return (word2idx, doc_length, query_length)
+    return word2idx, doc_length, query_length
 
 
 def load_data(dataset='train'):
     filename = os.path.join(data_path, data_filenames[dataset])
-    # Check for preprocessed data and load that instead
+    # 检查预处理数据并加载它 Check for preprocessed data and load that instead
     if os.path.isfile(filename + '.h5'):
         h5f = h5py.File(filename + '.h5', 'r')
         X = h5f['X'][:]

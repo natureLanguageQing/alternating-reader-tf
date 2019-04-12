@@ -10,3 +10,7 @@ python load_data.py
 python main.py
 ```
 目前仅在英文儿童图书测试集上测试 [bAbI project at Facebook](https://research.facebook.com/research/babi/)
+
+目前在百度数据集中 应用 
+
+因为我的显卡比较弱 所以代码是基于 tensorflow 1.11.0版本进行编写
