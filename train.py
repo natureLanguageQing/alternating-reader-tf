@@ -8,7 +8,7 @@ from tqdm import *
 
 # 随机
 def random_batch(X, Q, Y, batch_size):
-    indices = choice(len(X)-len(X)%batch_size, batch_size)
+    indices = choice(len(X) - len(X) % batch_size, batch_size)
     return X[indices], Q[indices], Y[indices]
 
 
@@ -46,6 +46,7 @@ def run_epoch(config, model, X, Q, Y):
     return total_loss, total_accuracy
 
 
+# 追踪
 def trace(config, sess, model, train_data):
     run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
     run_metadata = tf.RunMetadata()
@@ -62,6 +63,7 @@ def trace(config, sess, model, train_data):
     return
 
 
+# 运行训练
 def run(config, sess, model, train_data, test_data, saver=None):
     X_train, Q_train, Y_train = train_data
     X_test, Q_test, Y_test = test_data

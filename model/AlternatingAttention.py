@@ -59,6 +59,7 @@ class AlternatingAttention(object):
         nans = tf.reduce_sum(tf.cast(tf.is_nan(doc_attentions), dtype=float))
 
         self._doc_attentions = doc_attentions
+        # 这里面的answers被我转换成了一个分词之后的向量
         ans_mask = tf.cast(tf.equal(tf.expand_dims(self._answers, -1), self._docs), dtype=float)
         P_a = tf.reduce_sum(ans_mask * doc_attentions, 1)
         loss_op = -tf.reduce_mean(tf.log(P_a + tf.constant(0.00001)))
@@ -80,14 +81,14 @@ class AlternatingAttention(object):
 
     def _build_placeholders(self):
         """
-        为模型的输入添加tensorflow占位符:文档、查询、答案。
+        为模型的输入添加tensorflow占位符:文档、题目、正确选项。
         keep_prob和learning_rate是我们在训练时可能需要调整的超参数。
         Adds tensorflow placeholders for inputs to the model: documents, queries, answers.
         keep_prob and learning_rate are hyperparameters that we might like to adjust while training.
         """
         self._docs = tf.placeholder(tf.int32, [None, None], name="docs")
         self._queries = tf.placeholder(tf.int32, [None, None], name="queries")
-        self._answers = tf.placeholder(tf.int32, [None], name="answers")
+        self._answers = tf.placeholder(tf.int32, [None, None], name="answers")
 
         self._keep_prob = tf.placeholder(tf.float32, name="keep_prob")
         self._learning_rate = tf.placeholder(tf.float32, name="learning_rate")

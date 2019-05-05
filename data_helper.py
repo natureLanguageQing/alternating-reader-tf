@@ -3,20 +3,27 @@ import os
 import pickle
 import re
 from functools import reduce
+from typing import Any, Callable
 
 import h5py
 import numpy as np
+import thulac
 
+thu = thulac.thulac(user_dict="dictionary/THUOCL_medical.txt", seg_only=True)
+
+# thu.cut_f("CBTest/西药训练数据/注意力西药执业药师训练集（修正版本）测试.txt", "CBTest/西药分词数据/注意力西药执业药师训练集（分词版本）测试.txt")
+# thu.cut_f("CBTest/西药训练数据/注意力西药执业药师训练集（修正版本）训练.txt", "CBTest/西药分词数据/注意力西药执业药师训练集（分词版本）训练.txt")
+# thu.cut_f("CBTest/西药训练数据/注意力西药执业药师训练集（修正版本）验证.txt", "CBTest/西药分词数据/注意力西药执业药师训练集（分词版本）验证.txt")
 # 词表地址
-data_path = ''
+data_path = 'CBTest/西药分词数据'
 # 数据地址
 data_filenames = {
     # 训练数据地址
-    'train': 'BaiduTest/baidu_entity_train.txt',
+    'train': '注意力西药执业药师训练集（分词版本）训练.txt',
     # 测试数据地址
-    'test': 'BaiduTest/baidu_entity_test.txt',
+    'test': '注意力西药执业药师训练集（分词版本）测试.txt',
     # 验证数据地址
-    'valid': 'BaiduTest/baidu_entity_dev.txt'
+    'valid': '注意力西药执业药师训练集（分词版本）验证.txt'
 }
 vocab_file = os.path.join(data_path, 'vocab.h5')
 
@@ -24,6 +31,16 @@ vocab_file = os.path.join(data_path, 'vocab.h5')
 # 分词
 def tokenize(sentence):
     return [s.strip() for s in re.split('(\W+)+', sentence) if s.strip()]
+
+
+def chinese_tokenize(sentence):
+    # 中文分词
+    var: str = ''
+    for s in thu.cut(sentence, text=False):
+        for i in s:
+            var += i
+            var += " "
+    return [s.strip() for s in var.split() if s.strip()]
 
 
 # 转换故事格式
@@ -39,19 +56,23 @@ def parse_stories(lines):
                 _, line = line.split(' ', 1)
             if line:
                 if '\t' in line:  # 问题 答案 备选答案
-                    q, a, answers = line.split('\t')
+                    q, a = line.split('\t')
                     q = tokenize(q)
-
-                    stories.append((story, q, a))
+                    a = tokenize(a)
+                    if story and q and a:
+                        stories.append((story, q, a))
                 else:
-                    story.append(tokenize(line))
+                    if line:
+                        story.append(tokenize(line))
     return stories
 
 
 # 获取数据
 def get_stories(story_file):
+    # 获取数据
     stories = parse_stories(story_file.readlines())
-    flatten = lambda story: reduce(lambda x, y: x + y, story)
+    # 将故事组合到一起
+    flatten: Callable[[Any], Any] = lambda story: reduce(lambda x, y: x + y, story)
     stories = [(flatten(story), q, a) for story, q, a in stories]
     return stories
 
@@ -100,7 +121,7 @@ def pad_sequences(sequences, maxlen=None, dtype='int32',
 
 
 # 数据 向量化
-def vectorize_stories(data, word2idx, doc_max_len, query_max_len):
+def vectorize_stories(data, word2idx, doc_max_len, query_max_len, answer_length):
     X = []
     Xq = []
     Y = []
@@ -108,18 +129,20 @@ def vectorize_stories(data, word2idx, doc_max_len, query_max_len):
     for s, q, a in data:
         x = [word2idx[w] for w in s]
         xq = [word2idx[w] for w in q]
+        xa = [word2idx[w] for w in a]
         X.append(x)
         Xq.append(xq)
-        Y.append(word2idx[a])
+        Y.append(xa)
 
     X = pad_sequences(X, maxlen=doc_max_len)
     Q = pad_sequences(Xq, maxlen=query_max_len)
-    return (X, Q, np.array(Y))
+    Y = pad_sequences(Y, maxlen=answer_length)
+    return X, Q, Y
 
 
 def build_vocab():
     if os.path.isfile(vocab_file):
-        (word2idx, doc_length, query_length) = pickle.load(open(vocab_file, "rb"))
+        (word2idx, doc_length, query_length, answer_length, vocab_size) = pickle.load(open(vocab_file, "rb"))
     else:
         stories = []
         for key, filename in data_filenames.items():
@@ -127,15 +150,16 @@ def build_vocab():
 
         doc_length = max([len(s) for s, _, _ in stories])
         query_length = max([len(q) for _, q, _ in stories])
+        answer_length = max([len(a) for _, _, a in stories])
 
-        print('文档长度 : {}, 查询长度 : {}'.format(doc_length, query_length))
-        vocab = sorted(set(itertools.chain(*(story + q + [answer] for story, q, answer in stories))))
+        print('文档最大长度 : {}, 题目最大长度 : {}, 选项最大长度 : {}'.format(doc_length, query_length, answer_length))
+        vocab = sorted(set(itertools.chain(*(story + q + answer for story, q, answer in stories))))
         vocab_size = len(vocab) + 1
         print('词表 长度:', vocab_size)
         word2idx = dict((w, i + 1) for i, w in enumerate(vocab))
-        pickle.dump((word2idx, doc_length, query_length), open(vocab_file, "wb"))
+        pickle.dump((word2idx, doc_length, query_length, answer_length, vocab_size), open(vocab_file, "wb"))
 
-    return (word2idx, doc_length, query_length)
+    return word2idx, doc_length, query_length, answer_length, vocab_size
 
 
 def load_data(dataset='train'):
@@ -143,16 +167,16 @@ def load_data(dataset='train'):
     # 检查预处理数据并加载它
     if os.path.isfile(filename + '.h5'):
         h5f = h5py.File(filename + '.h5', 'r')
-        X = h5f['X'][:100]
-        Q = h5f['Q'][:100]
-        Y = h5f['Y'][:100]
+        X = h5f['X']
+        Q = h5f['Q']
+        Y = h5f['Y']
         h5f.close()
     else:
         stories = get_stories(open(filename, encoding="UTF-8"))
 
-        word2idx, doc_length, query_length = build_vocab()
+        word2idx, doc_length, query_length, answer_length, _ = build_vocab()
 
-        X, Q, Y = vectorize_stories(stories, word2idx, doc_length, query_length)
+        X, Q, Y = vectorize_stories(stories, word2idx, doc_length, query_length, answer_length)
         h5f = h5py.File(filename + '.h5', 'w')
         h5f.create_dataset('X', data=X)
         h5f.create_dataset('Q', data=Q)

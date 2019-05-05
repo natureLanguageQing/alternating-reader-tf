@@ -1,5 +1,4 @@
 import os
-import pprint
 
 import numpy as np
 import tensorflow as tf
@@ -21,7 +20,7 @@ flags.DEFINE_float("learning_rate_decay", 0.8,
                    "在损失不减少的半个周期后，学习率会下降多少(默认值:0.8)")
 
 # Training parameters 训练过程 参数
-flags.DEFINE_integer("batch_size", 8, "批量大小(默认:32)")
+flags.DEFINE_integer("batch_size", 32, "批量大小(默认:32)")
 flags.DEFINE_integer("num_epochs", 12, "训练周期数(默认:12)")
 flags.DEFINE_integer("evaluate_every", 300, "在这许多步骤之后，在验证集上评估模型(默认值:300)")
 
@@ -38,8 +37,9 @@ flags.DEFINE_boolean("evaluate", False, "是否在检查点上运行计算历。
 def main(_):
     flags_title = tf.flags.FLAGS
 
-    # 载入 数据
+    # 载入 训练 数据
     X_train, Q_train, Y_train = data_helper.load_data('train')
+    # 载入 验证 数据
     X_test, Q_test, Y_test = data_helper.load_data('valid')
 
     vocab_size = np.max(X_train) + 1
@@ -55,7 +55,8 @@ def main(_):
     # Train Model 训练模型
     with tf.Session(config=tf.ConfigProto(log_device_placement=False, allow_soft_placement=True)) as sess, tf.device(
             '/gpu:0'):
-        model = AlternatingAttention(flags_title.batch_size, vocab_size, flags_title.encoding_dim, flags_title.embedding_dim,
+        model = AlternatingAttention(flags_title.batch_size, vocab_size, flags_title.encoding_dim,
+                                     flags_title.embedding_dim,
                                      flags_title.num_glimpses, session=sess)
 
         if flags_title.trace:  # 调试跟踪模型 Trace model for debugging
@@ -74,7 +75,7 @@ def main(_):
                 print('需要指定要计算的restore_file检查点')
             else:
                 test_data = data_helper.load_data('test')
-                word2idx, _, _ = data_helper.build_vocab()
+                word2idx, _, _, _, _ = data_helper.build_vocab()
                 test.run(flags_title, model, test_data, word2idx)
         else:
             train.run(flags_title, sess, model,

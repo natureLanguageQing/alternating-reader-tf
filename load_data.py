@@ -7,12 +7,13 @@ from functools import reduce
 import h5py
 import numpy as np
 
-data_path = 'BaiduTest/'
+data_path = '西药分词数据/'
+pre_path = ""
 # 数据地址
 data_filenames = {
-    'train': 'BaiduTest/baidu_entity_train.txt',
-    'test': 'BaiduTest/baidu_entity_test.txt',
-    'valid': 'BaiduTest/baidu_entity_dev.txt'
+    'train': '注意力西药执业药师训练集（分词版本）训练.txt',
+    'test': '注意力西药执业药师训练集（分词版本）测试.txt',
+    'valid': '注意力西药执业药师训练集（分词版本）验证.txt'
 }
 # 词表文件
 vocab_file = os.path.join(data_path, 'vocab.h5')
@@ -33,11 +34,14 @@ def parse_stories(lines):
             _, line = line.split(' ', 1)
             if line:
                 if '\t' in line:  # query line
-                    q, a, _, answers = line.split('\t')
+                    q, a = line.split('\t')
                     q = tokenize(q)
-                    stories.append((story, q, a))
+                    a = tokenize(a)
+                    if story and a and q:
+                        stories.append((story, q, a))
                 else:
-                    story.append(tokenize(line))
+                    if line:
+                        story.append(tokenize(line))
     return stories
 
 
@@ -92,7 +96,7 @@ def pad_sequences(sequences, maxlen=None, dtype='int32',
     return x
 
 
-def vectorize_stories(data, word2idx, doc_max_len, query_max_len):
+def vectorize_stories(data, word2idx, doc_max_len, query_max_len, answer_max_length):
     X = []
     Xq = []
     Y = []
@@ -100,18 +104,21 @@ def vectorize_stories(data, word2idx, doc_max_len, query_max_len):
     for s, q, a in data:
         x = [word2idx[w] for w in s]
         xq = [word2idx[w] for w in q]
+        xa = [word2idx[w] for w in a]
         X.append(x)
         Xq.append(xq)
-        Y.append(word2idx[a])
+        Y.append(xa)
 
     X = pad_sequences(X, maxlen=doc_max_len)
     Q = pad_sequences(Xq, maxlen=query_max_len)
-    return X, Q, np.array(Y)
+    Y = pad_sequences(Y, maxlen=answer_max_length)
+
+    return X, Q, Y
 
 
 def build_vocab():
     if os.path.isfile(vocab_file):
-        (word2idx, doc_length, query_length) = pickle.load(open(vocab_file, "rb"))
+        (word2idx, doc_length, query_length, answer_length, vocab_size) = pickle.load(open(vocab_file, "rb"))
     else:
         stories = []
         for key, filename in data_filenames.items():
@@ -119,14 +126,15 @@ def build_vocab():
 
         doc_length = max([len(s) for s, _, _ in stories])
         query_length = max([len(q) for _, q, _ in stories])
+        answer_length = max([len(a) for _, _, a in stories])
 
-        print('文档长度: {}, 查询长度: {}'.format(doc_length, query_length))
-        vocab = sorted(set(itertools.chain(*(story + q + [answer] for story, q, answer in stories))))
+        print('最大置信度信息长度: {}, 最大题目长度: {}, 最大选项长度: {}'.format(doc_length, query_length, answer_length))
+        vocab = sorted(set(itertools.chain(*(story + q + answer for story, q, answer in stories))))
         vocab_size = len(vocab) + 1
-        print('词汇的大小:', vocab_size)
+        print('非重复词汇表的长度:', vocab_size)
         word2idx = dict((w, i + 1) for i, w in enumerate(vocab))
-        pickle.dump((word2idx, doc_length, query_length), open(vocab_file, "wb"))
-    return word2idx, doc_length, query_length
+        pickle.dump((word2idx, doc_length, query_length, answer_length, vocab_size), open(vocab_file, "wb"))
+    return word2idx, doc_length, query_length, answer_length, vocab_size
 
 
 def load_data(dataset='train'):
@@ -141,9 +149,9 @@ def load_data(dataset='train'):
     else:
         stories = get_stories(open(filename))
 
-        word2idx, doc_length, query_length = build_vocab()
+        word2idx, doc_length, query_length, answer_length, vocab_size = build_vocab()
 
-        X, Q, Y = vectorize_stories(stories, word2idx, doc_length, query_length)
+        X, Q, Y = vectorize_stories(stories, word2idx, doc_length, query_length, answer_length)
         h5f = h5py.File(filename + '.h5', 'w')
         h5f.create_dataset('X', data=X)
         h5f.create_dataset('Q', data=Q)
